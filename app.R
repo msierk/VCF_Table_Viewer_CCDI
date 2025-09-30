@@ -377,8 +377,8 @@ server <- function(input, output, session) {
     print("Reading vcf file:")
     # Testing purposes: Comment in/out lines to utilize lancet/consensus testing files
     # TODO: Integrate into file upload/selection process
-    #inFile <- "sbgenomics/testing/lancet_somatic.vcf"
-    inFile <- "sbgenomics/testing/consensus_somatic.vcf"
+    #inFile <- "sbgenomics/project-files/testing/lancet_somatic.vcf"
+    #inFile <- "sbgenomics/project-files/testing/consensus_somatic.vcf"
     print(inFile)
     req(inFile)
     vcf=read.vcfR(inFile, checkFile = TRUE)
@@ -455,14 +455,26 @@ server <- function(input, output, session) {
                                                            names_repair = "universal") # 
     # rename AF / Somatic columns
     # TODO: Unhardcode section
-    if(inFile == "sbgenomics/testing/lancet_somatic.vcf") {
-      my.vcf.ANN.df <- my.vcf.ANN.df |> rename("SOMATIC...62" = "SOMATIC", "SOMATIC...81" = "SOMATIC_TG") # requires SOMATIC to be in columns 62 and 81
+    if(inFile == "sbgenomics/project-files/testing/lancet_somatic.vcf") {
+      if(!("SOMATIC" %in% colnames(my.vcf.ANN.df))) {
+        dupe_names <- colnames(my.vcf.ANN.df %>% select(starts_with("SOMATIC...")))
+        new_names <- c("SOMATIC", "SOMATIC_TG") # Using same _TG format as in AF, correct if wrong=
+        if(length(dupe_names) > 0) {
+          my.vcf.ANN.df <- my.vcf.ANN.df %>% rename_at(vars(dupe_names), ~ new_names)
+        }
+      }
     }
-    else if (inFile == "sbgenomics/testing/consensus_somatic.vcf") {
+    else if (inFile == "sbgenomics/project-files/testing/consensus_somatic.vcf") {
       my.vcf.ANN.df <- my.vcf.ANN.df
     }
     else if (caller == "haplotypecaller") {
-      my.vcf.ANN.df <- my.vcf.ANN.df |> rename("AF...11" = "AF", "AF...70" = "AF_TG") # requires AF to be in columns 11 and 69
+      if(!("AF" %in% colnames(my.vcf.ANN.df))) {
+        dupe_names <- colnames(my.vcf.ANN.df %>% select(starts_with("AF...")))
+        new_names <- c("AF", "AF_TG")
+        if(length(dupe_names) > 0) {
+          my.vcf.ANN.df <- my.vcf.ANN.df %>% rename_at(vars(dupe_names), ~ new_names)
+        }
+      }
       #write.table(my.vcf.ANN.df, file="my.vcf.ANN.df.txt", quote=F)
     }
     #print(dim(my.vcf.ANN.df))
