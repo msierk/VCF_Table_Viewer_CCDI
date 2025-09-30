@@ -20,6 +20,9 @@ library(igvShiny)
 library(rtracklayer)
 library(GenomicAlignments)
 
+# Load in Helper file with additional functions
+source("helper.R")
+
 ##############################################################
 ####-------------Customization Section--------------------####
 ##############################################################
@@ -369,9 +372,13 @@ server <- function(input, output, session) {
     } else if (caller == "manta") {
       # FPD_9886_PB231E_vs_FPD_9886_SK221E.manta.somatic_sv_snpEff_VEP.ann.rtgfilt.vcf.gz
         inFile <- paste0(inputDir, "/", subjID, ".", caller, ".filtered_snpEff_VEP.", filterName, ".vcf.gz")
-    }  
+    }
     
     print("Reading vcf file:")
+    # Testing purposes: Comment in/out lines to utilize lancet/consensus testing files
+    # TODO: Integrate into file upload/selection process
+    #inFile <- "sbgenomics/testing/lancet_somatic.vcf"
+    inFile <- "sbgenomics/testing/consensus_somatic.vcf"
     print(inFile)
     req(inFile)
     vcf=read.vcfR(inFile, checkFile = TRUE)
@@ -407,7 +414,7 @@ server <- function(input, output, session) {
     } else {
       fixed <- t(data.frame(getFIX(vcf)))
     }
-    info <- INFO2df(vcf)
+    info <- INFO2df_UP(vcf) # use updated INFO2df to account for special character '='
     my.vcf.df <- cbind(as.data.frame(fixed), vcf@gt, info)
     
     # split the INFO annotations into columns
@@ -423,11 +430,15 @@ server <- function(input, output, session) {
     #newcols <- strsplit(cols, "\\|")
     #newcols <- unlist(newcols)
     
-    # get columns from vcf file directly
+    # get columns from vcf file directly, check if using ANN or CSQ
     ann <- grepl("ID=ANN", vcf@meta)
+    if("CSQ" %in% names(my.vcf.df)) {
+      ann <- grepl("ID=CSQ", vcf@meta)
+      my.vcf.df <- dplyr::rename(my.vcf.df, ANN = CSQ)
+    }
     txt <- vcf@meta[ann]
     cols <- strsplit(vcf@meta[ann], "Format: ") # get rid of leading text
-    cols2 <- gsub("dbSNP\\\">","dbSNP" , cols[[1]][2]) # get rid of trailing text
+    cols2 <- gsub('">', '', cols[[1]][2]) # get rid of trailing text
     newcols <- strsplit(cols2, "\\|")
     newcols <- unlist(newcols)
     #print(length(newcols))    
@@ -442,8 +453,15 @@ server <- function(input, output, session) {
     my.vcf.ANN.df <- my.vcf.ANN.df |> separate_wider_delim(ANN, delim = "|", names = newcols,  
                                                            too_many = "error", too_few = "error", 
                                                            names_repair = "universal") # 
-    # rename AF columns
-    if (caller == "haplotypecaller") {
+    # rename AF / Somatic columns
+    # TODO: Unhardcode section
+    if(inFile == "sbgenomics/testing/lancet_somatic.vcf") {
+      my.vcf.ANN.df <- my.vcf.ANN.df |> rename("SOMATIC...62" = "SOMATIC", "SOMATIC...81" = "SOMATIC_TG") # requires SOMATIC to be in columns 62 and 81
+    }
+    else if (inFile == "sbgenomics/testing/consensus_somatic.vcf") {
+      my.vcf.ANN.df <- my.vcf.ANN.df
+    }
+    else if (caller == "haplotypecaller") {
       my.vcf.ANN.df <- my.vcf.ANN.df |> rename("AF...11" = "AF", "AF...70" = "AF_TG") # requires AF to be in columns 11 and 69
       #write.table(my.vcf.ANN.df, file="my.vcf.ANN.df.txt", quote=F)
     }
@@ -475,6 +493,11 @@ server <- function(input, output, session) {
       
     # Extract 1 value from predictors that give values for each transcript:
     # PROVEAN_pred, PolyPhen2_HDIV_pred, PolyPhen2_HVAR_pred, REVEL_score
+    # Fill data with empty required columns if not already present
+    # TODO: Better determine necessary columns / renamings if necessary
+    vars_check <- c( "MutationTaster_pred","FATHMM_pred","PROVEAN_pred","Polyphen2_HDIV_pred", "Polyphen2_HVAR_pred", "REVEL_score", "MetaSVM_pred", "DANN_score", "CADD_phred", "PrimateAI_pred" )
+    my.vcf.ANN.df[vars_check[!(vars_check %in% colnames(my.vcf.ANN.df))]] = ""
+    
     my.vcf.ANN.df <- my.vcf.ANN.df %>% 
                      mutate(MT_pred = str_extract(MutationTaster_pred, "\\w"), .keep="unused", .after="MetaSVM_pred") %>%
                      mutate(FATHMM_pred = str_extract(FATHMM_pred, "\\w"), .keep="unused", .after="DANN_score") %>%
@@ -484,6 +507,11 @@ server <- function(input, output, session) {
                      mutate(REVEL_score = str_extract(REVEL_score, "\\d*\\.?\\d+"), .keep="unused")
     
     # order the columns logically  
+    # Fill data with empty required columns if not already present
+    # TODO: Better determine necessary columns / renamings if necessary
+    vars_check_2 <- c("Allele", "FILTER", "SYMBOL", "AA_mut", "Leudrive", "ACMG", "IMPACT", "Consequence",  "Existing_variation", "CLIN_SIG", "SIFT", "PolyPhen", 'DANN_score', 'CADD_phred')
+    my.vcf.ANN.df[vars_check_2[!(vars_check_2 %in% colnames(my.vcf.ANN.df))]] = NULL
+    
     my.vcf.ANN.df <- my.vcf.ANN.df %>% 
       relocate(c("Allele", "FILTER", "SYMBOL", "AA_mut", "Leudrive", "ACMG", "IMPACT", "Consequence",  "Existing_variation"), .after=QUAL) %>%
       relocate(c("CLIN_SIG", "SIFT", "PolyPhen"), .after=SOMATIC) %>% 
