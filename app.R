@@ -1,5 +1,5 @@
-# VCF Table Viewer 2
-# April 2025 Run of Sarek pipeline
+# VCF Table Viewer - CCDI & CGC Platform
+# October 2025 
 
 library(shiny) 
 library(shinydashboard)
@@ -31,35 +31,28 @@ global <- reactiveValues(sarekDir = "./",
                          vcfDir = "./example_data/vcfs/filtered/", 
                          bamDir = "/mnt/BW-Data/recalibrated/")
 
-### Sarek directory
-#sarekDir_default <- "./"
+# Manifest file with the following headers:
+# URI File FileType	StudyID	ParticipantID	SampleID
+manifest <- read.csv("sbgenomics/project-files/CCDI_Hub_manifest.csv",)
+manifest <- manifest |> arrange(StudyID, ParticipantID, SampleID)
+# get caller column from file names
+manifest <- manifest |> mutate(caller = str_select(FileName))
+# a6a77776-f50a-4630-bdcf-631b7e7e51d0.vardict_somatic.norm.annot.public.vcf.gz
+# 65377817-5b14-4314-a87b-5eb4bae3757c.mutect2_somatic.norm.annot.public.vcf.gz
+# 9bf1f6d4-29c9-4f68-88e1-4246d9ce16e0.consensus_somatic.norm.annot.public.vcf.gz
+# cc060cd2-3f50-4e33-95bb-27d81619d808.lancet_somatic.norm.annot.public.vcf.gz
+# 5d9a45fe-a6ed-4619-8a2b-aa69614e8e03.strelka2_somatic.norm.annot.public.vcf.gz
 
-### Samplesheet from sarek run
-#sampleSheet_default <- paste0(sarekDir_default, "/samplesheet.csv")
+## Dropdown items
+study_list <- unique(manifest$StudyID)
+subject_list <- unique(manifest$ParticipantID)
+sample_list <- unique(manifest$SampleID)
 
-### VCF file location (all filtered VCFs should be in the same directory)
-#vcfDir_default <- "./vcfs/filtered/"
+# list of callers
+#callers <- c("consensus", "strelka2", "mutect2", "lancet", "vardict")
+callers <- unique(manifest$caller)
 
-### location of bam files for IGV ###
-#bamDir_default <- paste0(global$sarekDir,"/preprocessing/recalibrated/")
-# if (Sys.info()['nodename'] != "NCI-02295810-ML") {
-#   # Posit::Connect server
-#   # -> The Biowulf file system is mounted at /mnt/BW-Data/ on appshare-dev
-#    <- "/mnt/BW-Data/recalibrated/"
-# }
-
-sampleSheet <- read.csv("./example_data/samplesheet.csv",)
-sampleSheet <- sampleSheet |> arrange(patient)
-subject_list <- unique(sampleSheet$patient)
-
-# lists of important genes to highlight
-gene_lists <- read.csv("./example_data/Gene_lists.txt", header = T, sep = "\t")
-
-### list of callers for dropdown
-# TODO: get from vcf directory
-callers <- c("haplotypecaller", "deepvariant", "mutect2", "strelka", "manta")
-
-### list of filtering levels
+# list of filtering levels
 # Left out due to size constraints:
 #  - Annotation: full annotated VCF produced by sarek
 #  - Region: filter VCF by GIAB mappable region
@@ -73,23 +66,12 @@ filterNames <- c("ann.rtgfilt.popfilt", "ann.rtgfilt.popfilt.sigmut",
                  "ann.rtgfilt.popfilt.sigmut.genesmut", "ann.rtgfilt.allgenes")
 names(filterNames) <- filters
 
+## lists of important genes to highlight in the table
+gene_lists <- read.csv("./example_data/Gene_lists.txt", header = T, sep = "\t")
+
 ##############################################################
 
-# TODO:
-# 1. merge calls from multiple callers into one table
-# 2. Add tab with summary/plotting tools:
-#   General overview of the WES cohort:
-#     - how many patients sequenced,
-#     - how many patients with at least one Bone Marrows (BM)
-#     - how many have paired skin biopsy/BM
-#     - how many have multiple timepoints (e.g. 1 time point- 2-4 time points, > 4)
-# 
-#   What are the most recurrent somatic mutations in Myeloid Malignancy genes?
-#   Are there recurrent somatic mutations in NON-Myeloid genes and what are they?
-#   Are there recurrent germline mutations?
-
 printf <- function(...) print(noquote(sprintf(...))) # used with igvShiny
-
 
 # for highlighting mutation severity columns
 color_gradient <- function(dt, column_name, gradient_colors = c("#FF6666", "#DDDDDD")) {
@@ -200,30 +182,8 @@ ui <- dashboardPage(
 # server is where all calculations are done, tables are pre-rendered
 server <- function(input, output, session) {
   
-  # Issues with merging VCFs/variants:
-  # 1. Need to keep GT sections from multiple samples, and they may differ between callers
-  #.   e.g. haplotypecaller: FPD_0028_FPD_0028_SK211E 0/1:53,41:94:99:1246,0,1560
-  #         mutect2:         FPD_0028_FPD_0028_BM211E 1|0:65,4:0.07:69:27,1:29,3:57,4:1|0:178436129_G_GA:178436129:54,11,2,2
-  #                          FPD_0028_FPD_0028_SK211E 0|0:80,3:0.018:83:29,3:29,0:72,3:1|0:178436129_G_GA:178436129:51,29,2,1
-  #
-  # 2. Need to create a column that lists callers, e.g.:
-  #   a. read in haplotypecaller vcf
-  #   b. read in 2nd caller (e.g. DeepVariant)
-  #   c. go through HT df, if index is in DV df, add DV to list of callers
-  #   d. repeat for other callers
-
   # Get the VCF and BAM file directories
   roots=c(wd='.', vol='/Volumes', mnt='/mnt')
-  
-  get_sarek_dir <- reactive({
-    shinyDirChoose(input, 'sarek_dir', roots=roots) 
-    output$sarekDir <- renderText(as.character(parseDirPath(roots=roots, input$sarek_dir)))
-    
-    sarekpath <- as.character(parseDirPath(roots=roots, input$sarek_dir))
-    print(sarekpath)
-    
-    return(sarekpath)
-  })
   
   get_vcf_dir <- reactive({
     shinyDirChoose(input, 'vcf_dir', roots=roots)  
@@ -245,22 +205,11 @@ server <- function(input, output, session) {
     return(bampath)
   })
   
-  
-  # sampleSheet <- reactive({
-  #     req(global$sampleSheet_path)
-  #     read.csv(global$sampleSheet_path)
-  #     #sampleSheet <-ss |> arrange(patient)
-  #     #return(sampleSheet)
-  # })
-  
+  # manifest
   observeEvent(input$samplesheet, {
     sampleSheet <- read.csv(input$samplesheet$datapath)
     sampleSheet <- sampleSheet |> arrange(patient)
     updateSelectInput(session, "subjectID", choices = unique(sampleSheet$patient))
-  })
-  
-  observeEvent(input$sarek_dir, {
-    global$sarekDir <- input$sarek_dir
   })
   
   observeEvent(input$vcf_dir, {
@@ -269,55 +218,23 @@ server <- function(input, output, session) {
   
   #observeEvent(input$bam_dir, {
   #})
-    # if (is.integer(input$sarek_dir)) {
-    #   sarekpath <- sarekDir_default
-    #   output$sarekDir <- renderText(sarekDir_default)
-    # } else {
-    #   sarekpath <- get_sarek_dir()
-    # }
-    # 
-    # samplesheet_default <- paste0(sarekpath, "/samplesheet.csv")
-    # #ss_file <- "./samplesheet_3-31-25.csv"
-    # sampleSheet <- read.csv(samplesheet_default)
-    # 
-    # choices_for_subjectID <- unique(sampleSheet$patient)
-    # 
-    # updateSelectInput(session, "subjectID", choices = choices_for_subjectID)
-    
-    ### list of individuals for dropdown
-    #individual_list <- sort(unique(sampleSheet$patient))
-    
-  
-  
 
-  
   #-----------------------------------------------------------------------------
   #  generate variant dataframe
   #-----------------------------------------------------------------------------
   inputTable <- reactive({
     
     print("Getting input data frame")
-    sarekpath <- get_sarek_dir()
     vcfpath <- get_vcf_dir()
     bampath <- get_bam_dir()
     #req(input$samplesheet)
     
-    # if (is.integer(input$sarek_dir)) { # no selection made
-    #   sarekpath <- glo
-    #   output$sarekDir <- renderText(global$sarekDir)
-    # } else {
-    #   sarekpath <- get_sarek_dir()
-    # }
-    #sarekpath <- get_sarek_dir()
     #sampleSheet <- get_samplesheet()
     #vcfpath <- get_vcf_dir()
     
-    print(paste("sarekpath:", global$sarekDir))
     print(paste("samplesheet:", global$sampleSheet))
     print(paste("vcfpath:", global$vcfDir))
     
-    
-
     # if (is.integer(input$vcf_dir)) { # no selection made
     #   vcfpath <- vcfDir_default
     #   output$vcfDir <- renderText(vcfDir_default)
@@ -325,8 +242,11 @@ server <- function(input, output, session) {
     #   vcfpath <- get_vcf_dir()
     # }
     
+    studyID <- input$studyID
     subjID <- input$subjectID
     caller <- input$caller
+    sampleID <- input$sampleID
+    
     filterLevel <- input$filterLevel # region, population, mutation, driver, genes of interest
     
     inputDir <- paste0(global$vcfDir, caller) # sep = "/"
@@ -334,42 +254,11 @@ server <- function(input, output, session) {
 
     inFile <- "NULL"
     
-    # if (filterLevel == "Region") {
-    #   filterName <- "ann.rtgfilt"
-    # } else if (filterLevel == "Population") {
-    #   filterName <- "ann.rtgfilt.popfilt"
-    # } else if (filterLevel == "Mutation") {
-    #   filterName <- "ann.rtgfilt.popfilt.sigmut"
-    # } else if (filterLevel == "ML Driver Genes") {
-    #   filterName <- "ann.rtgfilt.popfilt.sigmut.genesmut"
-    # } else if (filterLevel == "Genes of Interest") {
-    #   filterName <- "ann.rtgfilt.allgenes"
-    # }
     filterName <- filterNames[filterLevel]
-    # germline    
-    if (caller == "haplotypecaller" || caller == "deepvariant") {
-      
-      germline_samples <- sampleSheet |> filter(patient == subjID & status == 0)
-      
-      if (dim(germline_samples)[[1]] != 0) {
-        if (caller == "haplotypecaller") {
-          inFile <- paste0(inputDir, "/", germline_samples[1,"sample"], ".", caller, ".filtered_snpEff_VEP.", filterName, ".vcf.gz")
-        } else {
-          inFile <- paste0(inputDir, "/", germline_samples[1,"sample"], ".", caller, "_snpEff_VEP.", filterName, ".vcf.gz")
-        }
-      }
-    # somatic
-    } else if (caller == "mutect2") { 
-        inFile <- paste0(inputDir, "/", subjID, ".", caller, ".filtered_snpEff_VEP.", filterName, ".vcf.gz")
     
-    # need to generate somatic_vs_germline pairs for strelka and manta output
-    } else if (caller == "strelka") {
-      # FPD_9978_BM241E_vs_FPD_9978_SK241E.strelka.somatic_merged_snpEff_VEP.ann.rtgfilt.allgenes.vcf.gz
-        inFile <- paste0(inputDir, "/", subjID, ".", caller, ".filtered_snpEff_VEP.", filterName, ".vcf.gz")
-    } else if (caller == "manta") {
-      # FPD_9886_PB231E_vs_FPD_9886_SK221E.manta.somatic_sv_snpEff_VEP.ann.rtgfilt.vcf.gz
-        inFile <- paste0(inputDir, "/", subjID, ".", caller, ".filtered_snpEff_VEP.", filterName, ".vcf.gz")
-    }  
+    # select infile from manifest df
+    infile <- manifest |> filter(StudyID == studyID, ParticipantID == subjID, 
+                                 SampleID == sampleID, Caller = caller) |> select(FileName)
     
     print("Reading vcf file:")
     print(inFile)
@@ -535,10 +424,6 @@ server <- function(input, output, session) {
   #-----------------------------------------------------------------------------
   #  render data table
   #-----------------------------------------------------------------------------
-  # TODO:
-  #   1. Get column headers from VCF header
-  #   2. Make selection of samples more generic
-  #   3. Make selection of columns to highlight more flexible
   
   output$dataTable <- renderDT({
     
@@ -746,11 +631,6 @@ server <- function(input, output, session) {
   #-----------------------------------------------------------------------------#
   # plot of allele frequencies
   #-----------------------------------------------------------------------------#
-  # TODO:
-  #   1. Enable for manta & strelka calls (these are currently not in a merged VCF like mutect2)
-  #   2. Enable plotting of other values besides AF
-  #   3. Provide error message if attempting to plot nonsupported callers
-  
   observeEvent(input$createPlot, {
 
     subjID <- input$subjectID
@@ -845,3 +725,4 @@ shinyApp(ui, server) # launch.browser = TRUE, options = list(width = 1600)
 # i - Table information summary
 # p - Pagination control
 #
+
