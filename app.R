@@ -344,6 +344,12 @@ server <- function(input, output, session) {
     updateSelectInput(session, "CCDI_vcf_dropdown", choices=ccdi_vcf_options())
   })
   
+  observeEvent(input$CCDI_vcf_dropdown, {
+    req(input$CCDI_vcf_dropdown)
+    
+    
+  })
+  
   #observeEvent(input$bam_dir, {
   #})
     # if (is.integer(input$sarek_dir)) {
