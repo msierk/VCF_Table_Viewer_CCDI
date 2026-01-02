@@ -1,5 +1,5 @@
-# VCF Table Viewer 2
-# April 2025 Run of Sarek pipeline
+# VCF Table Viewer - CCDI & CGC Platform
+# October 2025 
 
 library(shiny) 
 library(shinydashboard)
@@ -31,35 +31,28 @@ global <- reactiveValues(sarekDir = "./",
                          vcfDir = "./sbgenomics/project-files/vcfs/filtered/", 
                          bamDir = "/mnt/BW-Data/recalibrated/")
 
-### Sarek directory
-#sarekDir_default <- "./"
+# Manifest file with the following headers:
+#VCFFileName, caller, ParticipantID, SampleID, BAMFileName (optional), StudyID (optional)
+manifest <- read.csv("sbgenomics/project-files/CCDI_Manifest_Example.csv")
+manifest <- manifest |> arrange(StudyID, ParticipantID, SampleID)
+# get caller column from file names
+#manifest <- manifest |> mutate(caller = str_select(FileName))
+# a6a77776-f50a-4630-bdcf-631b7e7e51d0.vardict_somatic.norm.annot.public.vcf.gz
+# 65377817-5b14-4314-a87b-5eb4bae3757c.mutect2_somatic.norm.annot.public.vcf.gz
+# 9bf1f6d4-29c9-4f68-88e1-4246d9ce16e0.consensus_somatic.norm.annot.public.vcf.gz
+# cc060cd2-3f50-4e33-95bb-27d81619d808.lancet_somatic.norm.annot.public.vcf.gz
+# 5d9a45fe-a6ed-4619-8a2b-aa69614e8e03.strelka2_somatic.norm.annot.public.vcf.gz
 
-### Samplesheet from sarek run
-#sampleSheet_default <- paste0(sarekDir_default, "/samplesheet.csv")
+## Dropdown items
+study_list <- unique(manifest$StudyID)
+subject_list <- unique(manifest$ParticipantID)
+sample_list <- unique(manifest$SampleID)
 
-### VCF file location (all filtered VCFs should be in the same directory)
-#vcfDir_default <- "./vcfs/filtered/"
+# list of callers
+#callers <- c("consensus", "strelka2", "mutect2", "lancet", "vardict")
+callers <- unique(manifest$Caller)
 
-### location of bam files for IGV ###
-#bamDir_default <- paste0(global$sarekDir,"/preprocessing/recalibrated/")
-# if (Sys.info()['nodename'] != "NCI-02295810-ML") {
-#   # Posit::Connect server
-#   # -> The Biowulf file system is mounted at /mnt/BW-Data/ on appshare-dev
-#    <- "/mnt/BW-Data/recalibrated/"
-# }
-
-sampleSheet <- read.csv("./sbgenomics/project-files/samplesheet.csv",)
-sampleSheet <- sampleSheet |> arrange(patient)
-subject_list <- unique(sampleSheet$patient)
-
-# lists of important genes to highlight
-gene_lists <- read.csv("./sbgenomics/project-files/Gene_lists.txt", header = T, sep = "\t")
-
-### list of callers for dropdown
-# TODO: get from vcf directory
-callers <- c("haplotypecaller", "deepvariant", "mutect2", "strelka", "manta")
-
-### list of filtering levels
+# list of filtering levels
 # Left out due to size constraints:
 #  - Annotation: full annotated VCF produced by sarek
 #  - Region: filter VCF by GIAB mappable region
@@ -73,28 +66,17 @@ filterNames <- c("ann.rtgfilt.popfilt", "ann.rtgfilt.popfilt.sigmut",
                  "ann.rtgfilt.popfilt.sigmut.genesmut", "ann.rtgfilt.allgenes")
 names(filterNames) <- filters
 
+## lists of important genes to highlight in the table
+gene_lists <- read.csv("./example_data/Gene_lists.txt", header = T, sep = "\t")
+
 ##############################################################
 
-# TODO:
-# 1. merge calls from multiple callers into one table
-# 2. Add tab with summary/plotting tools:
-#   General overview of the WES cohort:
-#     - how many patients sequenced,
-#     - how many patients with at least one Bone Marrows (BM)
-#     - how many have paired skin biopsy/BM
-#     - how many have multiple timepoints (e.g. 1 time point- 2-4 time points, > 4)
-# 
-#   What are the most recurrent somatic mutations in Myeloid Malignancy genes?
-#   Are there recurrent somatic mutations in NON-Myeloid genes and what are they?
-#   Are there recurrent germline mutations?
-
 printf <- function(...) print(noquote(sprintf(...))) # used with igvShiny
-
 
 # for highlighting mutation severity columns
 color_gradient <- function(dt, column_name, gradient_colors = c("#FF6666", "#DDDDDD")) {
   col_func <- colorRampPalette(gradient_colors)
-  dt %>% 
+  dt |> 
     formatStyle(column_name, 
                 backgroundColor = styleEqual(
                   sort(unique(dt$x$data[[column_name]]), decreasing = TRUE),
@@ -121,45 +103,28 @@ ui <- dashboardPage(
            ))),
            p("text "), # just used for spacer, otherwise "Input Files" overlaps with header for some reason
            h3("Input files"),
-           shinyDirButton("sarek_dir", "Sarek output directory", "Select a folder", style="width:200px"),
-           verbatimTextOutput("sarekDir", placeholder = TRUE),
+           shinyDirButton("file_dir", "File directory", "Select a folder", style="width:200px"),
+           verbatimTextOutput("fileDir", placeholder = TRUE),
            hr(style = "border-top: 1px solid #ccc; margin: 10px 0;"), # Add a styled horizontal rule
            
-           p("Load the samplesheet used to run the sarek pipeline to provide the patients and samples.
-             (Default: samplesheet.csv in the current directory. Required columns: patient, sample, status)"),
+           p("Load the manifest file.
+             (Default: manifest.csv in the current directory. Required columns: VCFFileName, caller, ParticipantID, SampleID)"),
            fileInput("samplesheet", label = "Select samplesheet (.csv format):", 
                      accept = ".csv"),
            #verbatimTextOutput("stylesheet_file", placeholder = TRUE),
            hr(style = "border-top: 1px solid #ccc; margin: 10px 0;"), # Add a styled horizontal rule
            
-           radioButtons("CCDI_selector", label="Select data source", choiceNames=c("Use CGC data","Use CCDI data"),
-                        choiceValues=c("CGC","CCDI")),
-           conditionalPanel(
-             condition="input.CCDI_selector == 'CCDI'",
-             fileInput("CCDI_manifest", label = "Upload CCDI Manifest (.csv format)", accept = ".csv"),
-             selectInput("CCDI_study_dropdown", label = "Study ID", choices=NULL),
-             selectInput("CCDI_participant_dropdown", label = "Participant ID", choices=NULL),
-             selectInput("CCDI_sample_dropdown", label = "Sample ID", choices=NULL),
-             radioButtons("fileAccess_selector", label="File Access",choiceNames=c("Open","Controlled"),
-                          choiceValues=c("Open","Controlled")),
-             conditionalPanel(
-               condition="(input.CCDI_study_dropdown.length > 0) && (input.CCDI_participant_dropdown.length > 0) && (input.CCDI_sample_dropdown.length > 0)",
-               selectInput("CCDI_vcf_dropdown", label="Select VCF file", choices=NULL)
-             )
-           ),
-           hr(style = "border-top: 1px solid #ccc; margin: 10px 0;"), # Add a styled horizontal rule 
+           #p("Specify the directory with the post-pipeline filtered VCF files."),
+           #shinyDirButton("vcf_dir", "Select the VCF file directory", "Select a folder", style="width:200px"), # 
+           #verbatimTextOutput("vcfDir", placeholder = TRUE),
+           #hr(style = "border-top: 1px solid #ccc; margin: 10px 0;"), # Add a styled horizontal rule
            
-           p("Specify the directory with the post-pipeline filtered VCF files."),
-           shinyDirButton("vcf_dir", "Select the VCF file directory", "Select a folder", style="width:200px"), # 
-           verbatimTextOutput("vcfDir", placeholder = TRUE),
-           hr(style = "border-top: 1px solid #ccc; margin: 10px 0;"), # Add a styled horizontal rule
+           #p("Specify the directory with the BAM files. Default: preprocessing/recalibrated in the sarek output directory."),
+           #shinyDirButton("bam_dir", "Select the BAM file directory", "Select a folder", style="width:200px"),
+           #verbatimTextOutput("bamDir", placeholder = TRUE),
+           #hr(style = "border-top: 1px solid #ccc; margin: 10px 0;"), # Add a styled horizontal rule
            
-           p("Specify the directory with the BAM files. Default: preprocessing/recalibrated in the sarek output directory."),
-           shinyDirButton("bam_dir", "Select the BAM file directory", "Select a folder", style="width:200px"),
-           verbatimTextOutput("bamDir", placeholder = TRUE),
-           hr(style = "border-top: 1px solid #ccc; margin: 10px 0;"), # Add a styled horizontal rule
-           
-           p("Load the lists of genes to highlight. (Currently equires columns 'Leudrive' and	'ACMG73'"),
+           p("Load the lists of genes of interest to highlight."),
            fileInput("gene_list", label = "Select the gene lists (tab-delimited, with headers):")
            #         accept = c(".txt", ".tsv")#,
            
@@ -167,14 +132,19 @@ ui <- dashboardPage(
       ), # dashboardSidebar
                 
       dashboardBody(
-
-                fluidRow(column(3, selectInput("subjectID", "Subject", 
-                                     choices = subject_list)),
+                # change menus to studyID, subjectID, sampleID, caller
+                # filters are Population:
+                #             Field: (default MAX_AF), value (default 0.01)
+                # and Mutation:
+                #             Field: (default significant), value (list)            
+                fluidRow(column(3, selectInput("studyID", "Study",
+                                               choices = study_list)),
+                         column(3, selectInput("subjectID", "Subject", 
+                                               choices = subject_list)),
+                         column(3, selectInput("sampleID", "Sample",
+                                               choices = sample_list)),
                          column(3, selectInput("caller", "Caller",
-                                               choices = callers)),
-                         column(3, selectInput("filterLevel", "Filter",
-                                               choices = filters,
-                                               selected = "ML Driver Genes"))
+                                               choices = callers))
                          ),
                 
                 fluidRow(column(12, align= "right", htmlOutput("numberOfVariants"))),
@@ -184,14 +154,17 @@ ui <- dashboardPage(
                         tabBox( title = "",
                                 id = "main",
                                 width = 12,
+                                    tabPanel("README",
+                                         htmlOutput("readme")
+                                    ),
                                     tabPanel("Table",
-                                      div(dataTableOutput("dataTable"))
+                                        div(dataTableOutput("dataTable"))
                                     ),
                                     tabPanel("Legend",
-                                             htmlOutput("legend")
+                                        htmlOutput("legend")
                                     ),
                                     tabPanel("BAM Viewer",
-                                             fluidRow(
+                                        fluidRow(
                                                       column(3, selectInput("variantList", "Selected Variants",
                                                                             choices = c(""))),
                                                       column(2, actionButton("removeTracks", "Remove Tracks"),
@@ -217,30 +190,8 @@ ui <- dashboardPage(
 # server is where all calculations are done, tables are pre-rendered
 server <- function(input, output, session) {
   
-  # Issues with merging VCFs/variants:
-  # 1. Need to keep GT sections from multiple samples, and they may differ between callers
-  #.   e.g. haplotypecaller: FPD_0028_FPD_0028_SK211E 0/1:53,41:94:99:1246,0,1560
-  #         mutect2:         FPD_0028_FPD_0028_BM211E 1|0:65,4:0.07:69:27,1:29,3:57,4:1|0:178436129_G_GA:178436129:54,11,2,2
-  #                          FPD_0028_FPD_0028_SK211E 0|0:80,3:0.018:83:29,3:29,0:72,3:1|0:178436129_G_GA:178436129:51,29,2,1
-  #
-  # 2. Need to create a column that lists callers, e.g.:
-  #   a. read in haplotypecaller vcf
-  #   b. read in 2nd caller (e.g. DeepVariant)
-  #   c. go through HT df, if index is in DV df, add DV to list of callers
-  #   d. repeat for other callers
-
   # Get the VCF and BAM file directories
   roots=c(wd='.', vol='/Volumes', mnt='/mnt')
-  
-  get_sarek_dir <- reactive({
-    shinyDirChoose(input, 'sarek_dir', roots=roots) 
-    output$sarekDir <- renderText(as.character(parseDirPath(roots=roots, input$sarek_dir)))
-    
-    sarekpath <- as.character(parseDirPath(roots=roots, input$sarek_dir))
-    print(sarekpath)
-    
-    return(sarekpath)
-  })
   
   get_vcf_dir <- reactive({
     shinyDirChoose(input, 'vcf_dir', roots=roots)  
@@ -274,10 +225,6 @@ server <- function(input, output, session) {
     sampleSheet <- read.csv(input$samplesheet$datapath)
     sampleSheet <- sampleSheet |> arrange(patient)
     updateSelectInput(session, "subjectID", choices = unique(sampleSheet$patient))
-  })
-  
-  observeEvent(input$sarek_dir, {
-    global$sarekDir <- input$sarek_dir
   })
   
   observeEvent(input$vcf_dir, {
@@ -344,55 +291,23 @@ server <- function(input, output, session) {
   
   #observeEvent(input$bam_dir, {
   #})
-    # if (is.integer(input$sarek_dir)) {
-    #   sarekpath <- sarekDir_default
-    #   output$sarekDir <- renderText(sarekDir_default)
-    # } else {
-    #   sarekpath <- get_sarek_dir()
-    # }
-    # 
-    # samplesheet_default <- paste0(sarekpath, "/samplesheet.csv")
-    # #ss_file <- "./samplesheet_3-31-25.csv"
-    # sampleSheet <- read.csv(samplesheet_default)
-    # 
-    # choices_for_subjectID <- unique(sampleSheet$patient)
-    # 
-    # updateSelectInput(session, "subjectID", choices = choices_for_subjectID)
-    
-    ### list of individuals for dropdown
-    #individual_list <- sort(unique(sampleSheet$patient))
-    
-  
-  
 
-  
   #-----------------------------------------------------------------------------
   #  generate variant dataframe
   #-----------------------------------------------------------------------------
   inputTable <- reactive({
     
     print("Getting input data frame")
-    sarekpath <- get_sarek_dir()
     vcfpath <- get_vcf_dir()
     bampath <- get_bam_dir()
     #req(input$samplesheet)
     
-    # if (is.integer(input$sarek_dir)) { # no selection made
-    #   sarekpath <- glo
-    #   output$sarekDir <- renderText(global$sarekDir)
-    # } else {
-    #   sarekpath <- get_sarek_dir()
-    # }
-    #sarekpath <- get_sarek_dir()
     #sampleSheet <- get_samplesheet()
     #vcfpath <- get_vcf_dir()
     
-    print(paste("sarekpath:", global$sarekDir))
     print(paste("samplesheet:", global$sampleSheet))
     print(paste("vcfpath:", global$vcfDir))
     
-    
-
     # if (is.integer(input$vcf_dir)) { # no selection made
     #   vcfpath <- vcfDir_default
     #   output$vcfDir <- renderText(vcfDir_default)
@@ -400,52 +315,28 @@ server <- function(input, output, session) {
     #   vcfpath <- get_vcf_dir()
     # }
     
+    studyID <- input$studyID
     subjID <- input$subjectID
     caller <- input$caller
-    filterLevel <- input$filterLevel # region, population, mutation, driver, genes of interest
+    sampleID <- input$sampleID
     
-    inputDir <- paste0(global$vcfDir, caller) # sep = "/"
-    #print(inputDir)
+    #filterLevel <- input$filterLevel # region, population, mutation, driver, genes of interest
+    
+    #inputDir <- paste0(global$vcfDir, caller) # sep = "/"
+    inputDir <- "sbgenomics/project-files/"
+    print(inputDir)
 
     inFile <- "NULL"
     
-    # if (filterLevel == "Region") {
-    #   filterName <- "ann.rtgfilt"
-    # } else if (filterLevel == "Population") {
-    #   filterName <- "ann.rtgfilt.popfilt"
-    # } else if (filterLevel == "Mutation") {
-    #   filterName <- "ann.rtgfilt.popfilt.sigmut"
-    # } else if (filterLevel == "ML Driver Genes") {
-    #   filterName <- "ann.rtgfilt.popfilt.sigmut.genesmut"
-    # } else if (filterLevel == "Genes of Interest") {
-    #   filterName <- "ann.rtgfilt.allgenes"
-    # }
-    filterName <- filterNames[filterLevel]
-    # germline    
-    if (caller == "haplotypecaller" || caller == "deepvariant") {
-      
-      germline_samples <- sampleSheet |> filter(patient == subjID & status == 0)
-      
-      if (dim(germline_samples)[[1]] != 0) {
-        if (caller == "haplotypecaller") {
-          inFile <- paste0(inputDir, "/", germline_samples[1,"sample"], ".", caller, ".filtered_snpEff_VEP.", filterName, ".vcf.gz")
-        } else {
-          inFile <- paste0(inputDir, "/", germline_samples[1,"sample"], ".", caller, "_snpEff_VEP.", filterName, ".vcf.gz")
-        }
-      }
-    # somatic
-    } else if (caller == "mutect2") { 
-        inFile <- paste0(inputDir, "/", subjID, ".", caller, ".filtered_snpEff_VEP.", filterName, ".vcf.gz")
+    #filterName <- filterNames[filterLevel]
     
-    # need to generate somatic_vs_germline pairs for strelka and manta output
-    } else if (caller == "strelka") {
-      # FPD_9978_BM241E_vs_FPD_9978_SK241E.strelka.somatic_merged_snpEff_VEP.ann.rtgfilt.allgenes.vcf.gz
-        inFile <- paste0(inputDir, "/", subjID, ".", caller, ".filtered_snpEff_VEP.", filterName, ".vcf.gz")
-    } else if (caller == "manta") {
-      # FPD_9886_PB231E_vs_FPD_9886_SK221E.manta.somatic_sv_snpEff_VEP.ann.rtgfilt.vcf.gz
-        inFile <- paste0(inputDir, "/", subjID, ".", caller, ".filtered_snpEff_VEP.", filterName, ".vcf.gz")
-    }  
+    # select infile from manifest df
+    infile_df <- manifest |> filter(StudyID == studyID, ParticipantID == subjID, 
+                                 SampleID == sampleID, Caller == caller) |> select(VCFFileName)
+    inFile <- paste0(inputDir, infile_df$VCFFileName[1])
     
+    # TODO: check VCF file size - if GB, print warning that only 100k(?) lines will be read in, 
+    # suggest filtering VCF first
     print("Reading vcf file:")
     print(inFile)
     req(inFile)
@@ -499,8 +390,11 @@ server <- function(input, output, session) {
     #newcols <- unlist(newcols)
     
     # get columns from vcf file directly
-    ann <- grepl("ID=ANN", vcf@meta)
+    # ##INFO=<ID=CSQ
+    ann <- grepl("ID=CSQ", vcf@meta)
     txt <- vcf@meta[ann]
+    print(txt)
+    
     cols <- strsplit(vcf@meta[ann], "Format: ") # get rid of leading text
     cols2 <- gsub("dbSNP\\\">","dbSNP" , cols[[1]][2]) # get rid of trailing text
     newcols <- strsplit(cols2, "\\|")
@@ -508,14 +402,14 @@ server <- function(input, output, session) {
     #print(length(newcols))    
     #print(newcols)
 
-    #print(colnames(my.vcf.df))
+    print(colnames(my.vcf.df))
     #print(dim(my.vcf.df))
     #print(my.vcf.df$ANN)
     
     # deal with multiple Annotations
-    my.vcf.ANN.df <- my.vcf.df |> separate_wider_delim(ANN, delim=",", names = c("ANN"), too_many="drop")
-    my.vcf.ANN.df <- my.vcf.ANN.df |> separate_wider_delim(ANN, delim = "|", names = newcols,  
-                                                           too_many = "error", too_few = "error", 
+    my.vcf.ANN.df <- my.vcf.df |> separate_wider_delim(CSQ, delim=",", names = c("CSQ"), too_many="drop")
+    my.vcf.ANN.df <- my.vcf.ANN.df |> separate_wider_delim(CSQ, delim = "|", names = newcols,  
+                                                           too_many = "debug", too_few = "debug", 
                                                            names_repair = "universal") # 
     # rename AF columns
     if (caller == "haplotypecaller") {
@@ -525,72 +419,114 @@ server <- function(input, output, session) {
     #print(dim(my.vcf.ANN.df))
     #Warning: Expected 93 pieces. Additional pieces discarded in 7 rows [1, 2, 3, 4, 5, 6, 7].
 
-    # get driver genes and ACMG genes
-    my.vcf.ANN.df$Leudrive <- ifelse(my.vcf.ANN.df$SYMBOL %in% gene_lists$Leudrive &
-                                       my.vcf.ANN.df$SYMBOL != '', 'Y', 'N')
-    my.vcf.ANN.df$ACMG <- ifelse(my.vcf.ANN.df$SYMBOL %in% gene_lists$ACMG &
-                                   my.vcf.ANN.df$SYMBOL != '', 'Y', 'N')
+    #### filter based on population frequency
+    # Default: MAX_AF
+    # TODO: allow user to select field instead of MAX_AF
+    # pop_freq_cutoff (default 0.01)
+    # 
+    pop_freq_cutoff <- 0.01
+    my.vcf.ANN.df <- my.vcf.ANN.df |> mutate(across(matches(c("gnomAD", "_AF")), \(x) as.numeric(x) )) |>
+                                      filter(gnomAD_AF <= pop_freq_cutoff)
     
-    #print(colnames(my.vcf.ANN.df))
-    # create an index from chr,pos,ref,alt
-    # Error in $<-.data.frame: replacement has 0 rows, data has 7
+    #### filter based on mutation severity
+    significant_mutation_list = c("start_lost", "stop_lost", "stop_gained", "missense_variant",
+                                  "frameshift_variant", "disruptive_inframe_insertion", "disruptive_inframe_deletion",
+                                  "conservative_inframe_deletion", "conservative_inframe_insertion", 
+                                  "splice_donor_variant", "splice_acceptor_variant", "splice_region_variant")
+                                  
+    less_significant_mutation_list = c("stop_retained_variant",
+                                       "5_prime_UTR_premature_start_codon_gain_variant",
+                                       "5_prime_UTR_variant",
+                                       "3_prime_UTR_variant",
+                                       "synonymous_variant")
+    # user selects mutation_filter (default "significant")
+    mutation_filter = "significant"
+    if (mutation_filter == "less_significant") {
+      mutation_list = c(significant_mutation_list, less_significant_mutation_list)
+    } else {
+      mutation_list = significant_mutation_list
+    }
+    my.vcf.ANN.df <- my.vcf.ANN.df |> filter(Consequence %in% mutation_list)
+    
+    #### create columns flagging genes of interest
+    for (i in colnames(gene_lists)) {
+      my.vcf.ANN.df[[i]] <- ifelse(my.vcf.ANN.df$SYMBOL %in% gene_lists[[i]] & 
+                                   my.vcf.ANN.df$SYMBOL != '', 'Y', 'N')
+    }
+    
+    #### create an index from chr,pos,ref,alt
     my.vcf.ANN.df$index <- paste(my.vcf.ANN.df$CHROM, my.vcf.ANN.df$POS, my.vcf.ANN.df$REF, my.vcf.ANN.df$ALT, sep='.')
     
-    # create aa mutation e.g. I255T
+    #### create aa mutation e.g. I255T
     #  Protein_position 70/393
     #  Amino_acids I/T
     
-    my.vcf.ANN.df <- my.vcf.ANN.df %>%
-      mutate(prot_pos = str_extract(Protein_position, "(^\\d+)/", group=1)) %>%
-      mutate(AA1 = str_extract(Amino_acids, "(^\\w+)/", group=1)) %>% 
-      mutate(AA2 = str_extract(Amino_acids, "/(\\w+$)", group=1)) %>%
+    my.vcf.ANN.df <- my.vcf.ANN.df |>
+      mutate(prot_pos = str_extract(Protein_position, "(^\\d+)/", group=1)) |>
+      mutate(AA1 = str_extract(Amino_acids, "(^\\w+)/", group=1)) |> 
+      mutate(AA2 = str_extract(Amino_acids, "/(\\w+$)", group=1)) |>
       mutate(AA_mut = case_when(Consequence == "missense_variant" | Consequence == "frameshift_variant" 
-                                ~ paste0(AA1, prot_pos, AA2))) %>%
+                                ~ paste0(AA1, prot_pos, AA2))) |>
       select(!prot_pos, !AA1, !AA2)
       
-    # Extract 1 value from predictors that give values for each transcript:
+    #### Extract 1 value from predictors that give values for each transcript:
     # PROVEAN_pred, PolyPhen2_HDIV_pred, PolyPhen2_HVAR_pred, REVEL_score
-    my.vcf.ANN.df <- my.vcf.ANN.df %>% 
-                     mutate(MT_pred = str_extract(MutationTaster_pred, "\\w"), .keep="unused", .after="MetaSVM_pred") %>%
-                     mutate(FATHMM_pred = str_extract(FATHMM_pred, "\\w"), .keep="unused", .after="DANN_score") %>%
-                     mutate(PROVEAN_pred = str_extract(PROVEAN_pred, "\\w"), .keep="unused", .after="MT_pred") %>%
-                     mutate(PP2_HDIV_pred = str_extract(Polyphen2_HDIV_pred, "\\w"), .keep="unused", .after="PROVEAN_pred") %>%
-                     mutate(PP2_HVAR_pred = str_extract(Polyphen2_HVAR_pred, "\\w"), .keep="unused", .after="PP2_HDIV_pred") %>%
-                     mutate(REVEL_score = str_extract(REVEL_score, "\\d*\\.?\\d+"), .keep="unused")
+    # my.vcf.ANN.df <- my.vcf.ANN.df |> 
+    #                  mutate(MT_pred = str_extract(MutationTaster_pred, "\\w"), .keep="unused", .after="MetaSVM_pred") |>
+    #                  mutate(FATHMM_pred = str_extract(FATHMM_pred, "\\w"), .keep="unused", .after="DANN_score") |>
+    #                  mutate(PROVEAN_pred = str_extract(PROVEAN_pred, "\\w"), .keep="unused", .after="MT_pred") |>
+    #                  mutate(PP2_HDIV_pred = str_extract(Polyphen2_HDIV_pred, "\\w"), .keep="unused", .after="PROVEAN_pred") |>
+    #                  mutate(PP2_HVAR_pred = str_extract(Polyphen2_HVAR_pred, "\\w"), .keep="unused", .after="PP2_HDIV_pred") |>
+    #                  mutate(REVEL_score = str_extract(REVEL_score, "\\d*\\.?\\d+"), .keep="unused")
+    # 
+    #### order the columns logically  "Leudrive", "ACMG", 
+    my.vcf.ANN.df <- my.vcf.ANN.df |> 
+      relocate(c("Allele", "FILTER", "SYMBOL", "AA_mut", "IMPACT", "Consequence",  "Existing_variation"), .after=QUAL) |>
+      relocate(c("CLIN_SIG", "SIFT", "PolyPhen")) #|> # .after=SOMATIC
+      #relocate(c("REVEL_score"), .after=DANN_score)
+    my.vcf.ANN.df <- my.vcf.ANN.df |> relocate(index)
     
-    # order the columns logically  
-    my.vcf.ANN.df <- my.vcf.ANN.df %>% 
-      relocate(c("Allele", "FILTER", "SYMBOL", "AA_mut", "Leudrive", "ACMG", "IMPACT", "Consequence",  "Existing_variation"), .after=QUAL) %>%
-      relocate(c("CLIN_SIG", "SIFT", "PolyPhen"), .after=SOMATIC) %>% 
-      relocate(c("REVEL_score"), .after=DANN_score)
-    my.vcf.ANN.df <- my.vcf.ANN.df %>% relocate(index)
+    #### make columns numeric  
+    # my.vcf.ANN.df <- my.vcf.ANN.df |> mutate(across(c('DANN_score', 'CADD_phred', 'REVEL_score'), \(x) as.numeric(x))) |>  
+    #                                    mutate(across(c('DANN_score', 'CADD_phred', 'REVEL_score'), \(x) round(x, 3)))   |>
+    #                                    mutate_if(is.numeric, ~replace(., is.na(.), 0))
+    #print(head(my.vcf.ANN.df))
     
-    my.vcf.ANN.df <- my.vcf.ANN.df %>% mutate(across(c('DANN_score', 'CADD_phred', 'REVEL_score'), \(x) as.numeric(x))) %>%  
-                                       mutate(across(c('DANN_score', 'CADD_phred', 'REVEL_score'), \(x) round(x, 3)))   %>%
-                                       mutate_if(is.numeric, ~replace(., is.na(.), 0))
-
-    # cut down # of columns to under 36 to avoid ajax error on Posit::Connect server
-    # my.vcf.ANN.df <- my.vcf.ANN.df %>% 
-    #   select(index, CHROM, POS, REF, ALT, IMPACT, FILTER, DP, Allele, SYMBOL, AA_mut, Leudrive, ACMG,
-    #          Consequence, Gene, Feature, starts_with("FPD"), SWISSPROT, 
-    #          VARIANT_CLASS, SIFT, PolyPhen, AF, MAX_AF, CLIN_SIG, 
-    #          MT_pred, PROVEAN_pred, PrimateAI_pred, 
-    #          FATHMM_pred, DANN_score, REVEL_score, CADD_phred) 
-    #LRT_pred, MetaSVM_pred, MT_pred, PROVEAN_pred, PrimateAI_pred, FATHMM_pred, PP2_HDIV_pred, PP2_HVAR_pred, PrimateAI_pred, 
     return(my.vcf.ANN.df)
   })
   
   hide_columns <- function(df) {
-    # get column indices for columns to begin the display hidden
+    # - get column indices for columns to begin the display hidden
+    # - TODO: create groupings of columns to hide/show with a click
+    # - TODO: make this easier to modify for default
     
-    # TODO: make this easier to modify for default
     # select columns to show:
     show_cols_text <- "index,CHROM,POS,REF,ALT,FILTER,AS_FilterStatus,AS_SB_TABLE,DP,GERMQ,
     POPAF,Allele,Consequence,IMPACT,SYMBOL,AA_mut,Leudrive,ACMG,Gene,Feature_type,Feature,BIOTYPE,EXON,INTRON,
     cDNA_position,CDS_position,Protein_position,Amino_acids,Existing_variation,VARIANT_CLASS,
     APPRIS,CCDS,ENSP,SWISSPROT,SIFT,PolyPhen,miRNA,AF,gnomADe_AF,MAX_AF,FREQS,CLIN_SIG,SOMATIC,
     CADD_phred,DANN_score,FATHMM_pred,LRT_pred,MetaSVM_pred,MT_pred,PROVEAN_pred,
-    PP2_HDIV_pred,PP2_HVAR_pred,PrimateAI_pred,REVEL_score"
+    PP2_HDIV_pred,PP2_HVAR_pred,PrimateAI_pred,REVEL_score,gnomAD_AF"
+    
+    show_cols_fixed <- c("index", "CHROM", "POS", "REF", "ALT")
+    show_cols_gt <- c()
+    
+    # need a named list with vectors for each caller
+    show_cols_info <- list(haplotypecaller = list(),
+                           mutect2 = list(),
+                           lancet = list(),
+                           manta = list(),
+                           svaba = list(),
+                           strelka2 = list(),
+                           deepvariant = list())
+    
+    show_cols_pop <- c("AF", "POPAF", "gnomADe_AF", "gnomAD_AF", "MAX_AF")
+    show_cols_gene <- c("Allele,Consequence,IMPACT,SYMBOL,AA_mut,Leudrive,ACMG,Gene,Feature_type,Feature,BIOTYPE,EXON,INTRON,
+    cDNA_position,CDS_position,Protein_position,Amino_acids,Existing_variation,VARIANT_CLASS,
+    APPRIS,CCDS,ENSP,SWISSPROT", "miRNA")
+    show_cols_impact <- c("SIFT,PolyPhen,CLIN_SIG,SOMATIC,
+    CADD_phred,DANN_score,FATHMM_pred,LRT_pred,MetaSVM_pred,MT_pred,PROVEAN_pred,
+    PP2_HDIV_pred,PP2_HVAR_pred,PrimateAI_pred,REVEL_score")
     
     # replace line returns and spaces
     show_cols_text <- gsub(pattern='\\n',replacement="",x=show_cols_text)
@@ -599,9 +535,14 @@ server <- function(input, output, session) {
     show_cols = dput(TEMP, file="tmp.txt") # add quotes
     
     # get the sampleIDs 
-    df2 <- df %>% select(starts_with("FPD_")) # TODO: make this work for any samples
-    sampleIDs <- names(df2)
-    show_cols <- append(show_cols, sampleIDs)
+    # gt <- vcf@gt
+    # > colnames(gt)
+    #[1] "FORMAT"      "BS_A1DV9T7G" "BS_GJWAV3E5"
+    show_cols <- append(show_cols, colnames(vcf@gt))
+    
+    # get columns with genes of interest
+    # for (i in colnames(gene_lists)) {my.vcf.ANN.df[[i]]
+    show_cols <- append(show_cols, colnames(gene_lists))
     
     #print(paste("show_cols:", show_cols))
     hide_columns <- which(!(names(df) %in% show_cols)) - 1
@@ -610,10 +551,6 @@ server <- function(input, output, session) {
   #-----------------------------------------------------------------------------
   #  render data table
   #-----------------------------------------------------------------------------
-  # TODO:
-  #   1. Get column headers from VCF header
-  #   2. Make selection of samples more generic
-  #   3. Make selection of columns to highlight more flexible
   
   output$dataTable <- renderDT({
     
@@ -622,19 +559,27 @@ server <- function(input, output, session) {
     if (is.null(df)) {
         validate("No variants found, select another filter")
         #output$numberOfVariants <- renderText({ "Number of variants: 0" })
-    } #else {
+    } else {
       # Prints the number of variants above the table
       #output$numberOfVariants <- renderText({ paste("Number of variants: ", dim(df)[1]) })
-    #}
+      print("df has variants")
+    }
     
     hide_cols <- hide_columns(df) # list of indices to hide initially
 
+    deleterious_columns <- c('MT_pred', 'PROVEAN_pred', 'PrimateAI_pred','FATHMM_pred',
+                             'LRT_pred','MetaSVM_pred', 'PP2_HDIV_pred', 'PP2_HVAR_pred')
+    color_gradient_columns <- c("CADD_phred", "DANN_score")
+    
+    # get index of FILTER column
+    FILTER_index <- grep("FILTER", names(df))
+    filter_list <- rep(list(NULL),FILTER_index)
+    filter_list[[FILTER_index]] <- list(search="PASS") # start with only variants that PASS  
+    
     dt <- DT::datatable(
       df, 
       rownames=FALSE, 
-      #escape=FALSE, # need if using HTML
-      extensions = c('FixedColumns','FixedHeader','Buttons'), # 'Select' to use datatables select instead of DT's
-      #selection = 'none', if using datatables select
+      extensions = c('FixedColumns','FixedHeader','Buttons'), 
       options = list(
         dom = 'Blfrtip',
         fixedHeader=TRUE,
@@ -652,33 +597,36 @@ server <- function(input, output, session) {
                       text = 'Excel',
                       exportOptions = list(rows = '.selected') # only export selected rows
                     )),
-        searchCols = list(  # initialize filters on each column
-          NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, #NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,  
-          list(search = "PASS") # FILTER
-          #strrep(NULL, 40)  # 54 columns
-        )
-      ),
+        searchCols = list(filter_list)  # initialize filters on each column
+      ), # options
       class = "display nowrap compact", # style
       filter = "top" # location of column filters
     # format columns
-    ) %>% formatStyle('IMPACT',
-                      backgroundColor = styleEqual(c("HIGH", "MODERATE"), c('#FA5F55', 'yellow'))
-    ) %>% formatStyle(c('MT_pred', 'PROVEAN_pred',
-                        'PrimateAI_pred','FATHMM_pred', 'PrimateAI_pred'), # 'LRT_pred','MetaSVM_pred', 'PP2_HDIV_pred', 'PP2_HVAR_pred',
-                      backgroundColor = styleEqual(c("D"), c('#FA5F55'))
-    ) %>% formatStyle(c('Leudrive','ACMG'),
-                      backgroundColor = styleEqual(c("Y"), c('lightgreen'))
-    ) %>% formatStyle('SYMBOL','ACMG',
-                      fontWeight = styleEqual("Y", "bold")
-    ) %>% formatStyle('SYMBOL', 'Leudrive',
-                      fontWeight = styleEqual("Y", "bold")
-    ) %>% formatStyle('REVEL_score',
-                      backgroundColor  = styleInterval(c(0.5), c('white','#FA5F55'))
-    ) %>% color_gradient("CADD_phred") %>%
-          color_gradient("DANN_score") 
-          #color_gradient("REVEL_score", gradient_colors = c("#FF6666", "#DDDDDD", "#6666FF"))
-    #} else {
-    #}
+    ) |>
+    formatStyle('IMPACT',
+                backgroundColor = styleEqual(c("HIGH", "MODERATE"), c('#FA5F55', 'yellow'))
+    ) |> 
+    formatStyle(colnames(gene_lists),
+                backgroundColor = styleEqual(c("Y"), c('lightgreen'))
+    ) |>
+    formatStyle('SYMBOL', colnames(gene_lists), fontWeight = styleEqual("Y", "bold"))  
+    
+    for (s in color_gradient_columns) {
+      if (s %in% colnames(df)) { dt <- dt |> color_gradient("gnomAD_AF") }
+    }
+    
+    for (p in deleterious_columns) {
+      if (s %in% colnames(df)) {
+        dt <- dt |> formatStyle(p, backgroundColor = styleEqual(c("D"), c('#FA5F55')))  
+      }
+    }
+    
+    if ("REVEL_score" %in% colnames(df)) {
+      dt <- dt |> formatStyle('REVEL_score',
+                              backgroundColor  = styleInterval(c(0.5), c('white','#FA5F55')))
+    }
+    
+    dt
   }) # renderDT
   
   # explanation of vcf labels in table
@@ -687,6 +635,15 @@ server <- function(input, output, session) {
       seamless="seamless",
       src="tmpuser/vcf_field_descriptions.html",
       width=800, 
+      height=800)
+  })
+  
+  # README file
+  output$readme <- renderUI({
+    tags$iframe(
+      seamless="seamless",
+      src="tmpuser/README.html",
+      width=800,
       height=800)
   })
   
@@ -727,7 +684,7 @@ server <- function(input, output, session) {
     chrom_pos <- paste0(variant$CHROM, ":", variant$POS)
     showGenomicRegion(session, id="igvShiny_0", chrom_pos) # chr21:10,397,614-10,423,341
     
-    samples <- variant %>% select(starts_with("FPD_")) # FPD_0028_FPD_0028_SK211E
+    samples <- variant |> select(starts_with("FPD_")) # FPD_0028_FPD_0028_SK211E
     #print(samples)
     sample_names <- colnames(samples)
     
@@ -821,11 +778,6 @@ server <- function(input, output, session) {
   #-----------------------------------------------------------------------------#
   # plot of allele frequencies
   #-----------------------------------------------------------------------------#
-  # TODO:
-  #   1. Enable for manta & strelka calls (these are currently not in a merged VCF like mutect2)
-  #   2. Enable plotting of other values besides AF
-  #   3. Provide error message if attempting to plot nonsupported callers
-  
   observeEvent(input$createPlot, {
 
     subjID <- input$subjectID
@@ -841,15 +793,15 @@ server <- function(input, output, session) {
     #          SB “Per-sample component statistics which comprise the Fisher’s Exact Test to detect strand bias.”
     
     # need gene symbol + aa mutation if available, select out GT fields
-    samples <- x %>% mutate(index = case_when(!is.na(AA_mut) ~ paste0(SYMBOL, "(", AA_mut, ")"), 
-                                              .default = index)) %>% 
+    samples <- x |> mutate(index = case_when(!is.na(AA_mut) ~ paste0(SYMBOL, "(", AA_mut, ")"), 
+                                              .default = index)) |> 
                      select(index, starts_with("FPD_")) 
                      
     print(samples)
 
     getAF <- ~as.numeric(unlist(strsplit(.x, ":"))[3])
-    samples <- samples %>% rowwise() %>% mutate(across(starts_with("FPD_"), getAF)) %>%
-                       rename_with(~str_remove(., "^FPD_[\\d]{4}_")) %>%
+    samples <- samples |> rowwise() |> mutate(across(starts_with("FPD_"), getAF)) |>
+                       rename_with(~str_remove(., "^FPD_[\\d]{4}_")) |>
                        select(contains("SK"), sort(colnames(.)))
     #print(samples)
       
@@ -900,6 +852,39 @@ server <- function(input, output, session) {
 # run the app
 shinyApp(ui, server) # launch.browser = TRUE, options = list(width = 1600)
 
+# Workaround for reading in cram files:
+# (from https://github.com/gladkia/igvShiny/issues/102)
+# 
+# Install the servr package if you don't have it already:
+# 
+# Start a local web server: In your R console, run the following command, replacing "path/to/your/files" with the actual path to the directory containing your CRAM and CRAI files:
+#   
+#   servr::httd(dir = "path/to/your/files")
+# This will start a local web server, usually at http://127.0.0.1:4321.
+# 
+# Note: inside Docker, do this (https://github.com/yihui/servr/issues/49):
+# 
+#   deamon_id <- servr::httd(port = 8001, daemon = TRUE, host = '0.0.0.0')
+#   cramURL <- "http://0.0.0.0:8001/your_file.cram"
+#
+# Load the CRAM track in igvShiny: In your Shiny app, you can now use loadCramTrackFromURL, 
+# providing the local URLs for your CRAM and CRAI files.
+# 
+# # In your Shiny server function
+# ...
+# session <- shiny::getDefaultReactiveDomain()
+# 
+# trackName <- "Local CRAM"
+# cramURL <- "http://127.0.0.1:4321/your_file.cram"
+# indexURL <- "http://127.0.0.1:4321/your_file.cram.crai"
+# 
+# loadCramTrackFromURL(session,
+#                      trackName=trackName,
+#                      trackColor="blue",
+#                      dataURL=cramURL,
+#                      indexURL=indexURL)
+# ...
+# Remember to replace "your_file.cram" with the name of your CRAM file.
 
 # all_cols <- c(CHROM,POS,ID,REF,ALT,QUAL,FILTER,AS_FilterStatus,AS_SB_TABLE,AS_UNIQ_ALT_READ_COUNT,CONTQ,DP,ECNT,GERMQ,
 #                MBQ,MFRL,MMQ,MPOS,NALOD,NCount,NLOD,OCM,PON,POPAF,ROQ,RPA,RU,SEQQ,STR,STRANDQ,STRQ,TLOD,LOF,NMD,
@@ -920,3 +905,4 @@ shinyApp(ui, server) # launch.browser = TRUE, options = list(width = 1600)
 # i - Table information summary
 # p - Pagination control
 #
+
