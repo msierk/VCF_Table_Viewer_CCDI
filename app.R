@@ -28,7 +28,7 @@ library(GenomicAlignments)
 addResourcePath("tmpuser", getwd()) 
 
 global <- reactiveValues(sarekDir = "./",  
-                         vcfDir = "./example_data/vcfs/filtered/", 
+                         vcfDir = "./sbgenomics/project-files/vcfs/filtered/", 
                          bamDir = "/mnt/BW-Data/recalibrated/")
 
 ### Sarek directory
@@ -48,12 +48,12 @@ global <- reactiveValues(sarekDir = "./",
 #    <- "/mnt/BW-Data/recalibrated/"
 # }
 
-sampleSheet <- read.csv("./example_data/samplesheet.csv",)
+sampleSheet <- read.csv("./sbgenomics/project-files/samplesheet.csv",)
 sampleSheet <- sampleSheet |> arrange(patient)
 subject_list <- unique(sampleSheet$patient)
 
 # lists of important genes to highlight
-gene_lists <- read.csv("./example_data/Gene_lists.txt", header = T, sep = "\t")
+gene_lists <- read.csv("./sbgenomics/project-files/Gene_lists.txt", header = T, sep = "\t")
 
 ### list of callers for dropdown
 # TODO: get from vcf directory
@@ -131,6 +131,23 @@ ui <- dashboardPage(
                      accept = ".csv"),
            #verbatimTextOutput("stylesheet_file", placeholder = TRUE),
            hr(style = "border-top: 1px solid #ccc; margin: 10px 0;"), # Add a styled horizontal rule
+           
+           radioButtons("CCDI_selector", label="Select data source", choiceNames=c("Use CGC data","Use CCDI data"),
+                        choiceValues=c("CGC","CCDI")),
+           conditionalPanel(
+             condition="input.CCDI_selector == 'CCDI'",
+             fileInput("CCDI_manifest", label = "Upload CCDI Manifest (.csv format)", accept = ".csv"),
+             selectInput("CCDI_study_dropdown", label = "Study ID", choices=NULL),
+             selectInput("CCDI_participant_dropdown", label = "Participant ID", choices=NULL),
+             selectInput("CCDI_sample_dropdown", label = "Sample ID", choices=NULL),
+             radioButtons("fileAccess_selector", label="File Access",choiceNames=c("Open","Controlled"),
+                          choiceValues=c("Open","Controlled")),
+             conditionalPanel(
+               condition="(input.CCDI_study_dropdown.length > 0) && (input.CCDI_participant_dropdown.length > 0) && (input.CCDI_sample_dropdown.length > 0)",
+               selectInput("CCDI_vcf_dropdown", label="Select VCF file", choices=NULL)
+             )
+           ),
+           hr(style = "border-top: 1px solid #ccc; margin: 10px 0;"), # Add a styled horizontal rule 
            
            p("Specify the directory with the post-pipeline filtered VCF files."),
            shinyDirButton("vcf_dir", "Select the VCF file directory", "Select a folder", style="width:200px"), # 
@@ -244,7 +261,7 @@ server <- function(input, output, session) {
       
     return(bampath)
   })
-  
+
   
   # sampleSheet <- reactive({
   #     req(global$sampleSheet_path)
@@ -265,6 +282,64 @@ server <- function(input, output, session) {
   
   observeEvent(input$vcf_dir, {
     global$vcfDir <- input$vcf_dir
+  })
+  df_manifest <- reactive({
+    req(input$CCDI_manifest$datapath)
+    read.csv(input$CCDI_manifest$datapath, header=TRUE, sep=",")
+  })
+  
+  ccdi_study <- reactive({
+    req(df_manifest())
+    unique(df_manifest() %>% pull(Study.ID)) 
+  })
+  
+  ccdi_participant <- reactive({
+    req(df_manifest())
+    req(input$CCDI_study_dropdown)
+    unique(df_manifest() %>% filter(Study.ID==input$CCDI_study_dropdown) %>% 
+             pull(Participant.ID))
+  })
+  
+  ccdi_sample <- reactive({
+    req(df_manifest())
+    req(input$CCDI_study_dropdown)
+    req(input$CCDI_participant_dropdown)
+
+    unique(df_manifest() %>% filter(Study.ID==input$CCDI_study_dropdown) %>%
+             filter(Participant.ID==input$CCDI_participant_dropdown) %>%
+             pull(Sample.ID))
+  })
+  
+  ccdi_vcf_options <- reactive({
+    req(df_manifest())
+    req(input$CCDI_study_dropdown)
+    req(input$CCDI_participant_dropdown)
+    req(input$CCDI_sample_dropdown)
+
+    unique(df_manifest() %>% filter(Study.ID==input$CCDI_study_dropdown) %>%
+                    filter(Participant.ID==input$CCDI_participant_dropdown) %>%
+                    filter(Sample.ID==input$CCDI_sample_dropdown) %>%
+                    filter(File.Access==input$fileAccess_selector) %>%
+                    pull(name))
+  })
+  
+  observe({
+    updateSelectInput(session, "CCDI_study_dropdown", choices=ccdi_study())
+  })
+  observe({
+    updateSelectInput(session, "CCDI_participant_dropdown", choices=ccdi_participant())
+  })
+  observe({
+    updateSelectInput(session, "CCDI_sample_dropdown", choices=ccdi_sample())
+  })
+  observe({
+    updateSelectInput(session, "CCDI_vcf_dropdown", choices=ccdi_vcf_options())
+  })
+  
+  observeEvent(input$CCDI_vcf_dropdown, {
+    req(input$CCDI_vcf_dropdown)
+    
+    
   })
   
   #observeEvent(input$bam_dir, {
