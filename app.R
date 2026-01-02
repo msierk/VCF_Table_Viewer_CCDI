@@ -283,14 +283,6 @@ server <- function(input, output, session) {
   observeEvent(input$vcf_dir, {
     global$vcfDir <- input$vcf_dir
   })
-
-    
-  observeEvent(input$CCDI_manifest, {
-    req(df_manifest())
-    study_id_list <- unique(df_manifest() %>% pull(Study.ID))
-    updateSelectInput(session, "CCDI_study_dropdown", choices=study_id_list)
-  })
-  
   df_manifest <- reactive({
     req(input$CCDI_manifest$datapath)
     read.csv(input$CCDI_manifest$datapath, header=TRUE, sep=",")
