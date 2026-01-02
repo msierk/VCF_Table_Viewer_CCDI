@@ -28,7 +28,7 @@ library(GenomicAlignments)
 addResourcePath("tmpuser", getwd()) 
 
 global <- reactiveValues(sarekDir = "./",  
-                         vcfDir = "./example_data/vcfs/filtered/", 
+                         vcfDir = "./sbgenomics/project-files/vcfs/filtered/", 
                          bamDir = "/mnt/BW-Data/recalibrated/")
 
 # Manifest file with the following headers:
@@ -212,8 +212,15 @@ server <- function(input, output, session) {
       
     return(bampath)
   })
+
   
-  # manifest
+  # sampleSheet <- reactive({
+  #     req(global$sampleSheet_path)
+  #     read.csv(global$sampleSheet_path)
+  #     #sampleSheet <-ss |> arrange(patient)
+  #     #return(sampleSheet)
+  # })
+  
   observeEvent(input$samplesheet, {
     sampleSheet <- read.csv(input$samplesheet$datapath)
     sampleSheet <- sampleSheet |> arrange(patient)
@@ -222,6 +229,64 @@ server <- function(input, output, session) {
   
   observeEvent(input$vcf_dir, {
     global$vcfDir <- input$vcf_dir
+  })
+  df_manifest <- reactive({
+    req(input$CCDI_manifest$datapath)
+    read.csv(input$CCDI_manifest$datapath, header=TRUE, sep=",")
+  })
+  
+  ccdi_study <- reactive({
+    req(df_manifest())
+    unique(df_manifest() %>% pull(Study.ID)) 
+  })
+  
+  ccdi_participant <- reactive({
+    req(df_manifest())
+    req(input$CCDI_study_dropdown)
+    unique(df_manifest() %>% filter(Study.ID==input$CCDI_study_dropdown) %>% 
+             pull(Participant.ID))
+  })
+  
+  ccdi_sample <- reactive({
+    req(df_manifest())
+    req(input$CCDI_study_dropdown)
+    req(input$CCDI_participant_dropdown)
+
+    unique(df_manifest() %>% filter(Study.ID==input$CCDI_study_dropdown) %>%
+             filter(Participant.ID==input$CCDI_participant_dropdown) %>%
+             pull(Sample.ID))
+  })
+  
+  ccdi_vcf_options <- reactive({
+    req(df_manifest())
+    req(input$CCDI_study_dropdown)
+    req(input$CCDI_participant_dropdown)
+    req(input$CCDI_sample_dropdown)
+
+    unique(df_manifest() %>% filter(Study.ID==input$CCDI_study_dropdown) %>%
+                    filter(Participant.ID==input$CCDI_participant_dropdown) %>%
+                    filter(Sample.ID==input$CCDI_sample_dropdown) %>%
+                    filter(File.Access==input$fileAccess_selector) %>%
+                    pull(name))
+  })
+  
+  observe({
+    updateSelectInput(session, "CCDI_study_dropdown", choices=ccdi_study())
+  })
+  observe({
+    updateSelectInput(session, "CCDI_participant_dropdown", choices=ccdi_participant())
+  })
+  observe({
+    updateSelectInput(session, "CCDI_sample_dropdown", choices=ccdi_sample())
+  })
+  observe({
+    updateSelectInput(session, "CCDI_vcf_dropdown", choices=ccdi_vcf_options())
+  })
+  
+  observeEvent(input$CCDI_vcf_dropdown, {
+    req(input$CCDI_vcf_dropdown)
+    
+    
   })
   
   #observeEvent(input$bam_dir, {
