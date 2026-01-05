@@ -1,0 +1,21 @@
+drs_uri,name,Study ID,Participant ID,Sample ID,File Access,Md5sum
+drs://nci-crdc.datacommons.io/dg.4DFC/e514032c-0229-4988-8d06-c459caf5e4de,00007342-df52-4765-9315-f529860af6a5.multi.vqsr.filtered.denovo.vep_105.vcf.gz,test1,PT_VN04Y016,Sample 1-1,,40d59440ab0add64a52860c0e17ae396
+drs://nci-crdc.datacommons.io/dg.4DFC/8215135d-3c25-464a-a8fe-95264adb4735,0002eede-afe8-4941-a494-06bc07706f9a.lancet_somatic.norm.annot.public.vcf.gz,test2,PT_KTRJ8TFY,Sample 3-11,Controlled,c8d01857a8e6b7d509822f97cfbe89a8
+drs://nci-crdc.datacommons.io/dg.4DFC/e514032c-0229-4988-8d06-c459caf5e4de,00007342-df52-4765-9315-f529860af6a5.multi.vqsr.filtered.denovo.vep_105.vcf.gz,test1,PT_J96HA0K2,Sample 5-4,,40d59440ab0add64a52860c0e17ae396
+drs://nci-crdc.datacommons.io/dg.4DFC/77f0d731-808c-4053-9a92-0ae806b44eb8,00019396-024d-4e34-874e-4048b3ae9e7c.svaba.sv.vcf.gz,test3,PT_0YB0195R,Sample 2-8,,58e2d7600fb6cccf7b3889b413a26342
+drs://nci-crdc.datacommons.io/dg.4DFC/abc567e2-ab4c-4763-9500-821e6be2d8b9,b75c662f-bbc6-422a-9499-3e58891b2443.mutect2_somatic.norm.annot.public.vcf.gz,test1,PT_9PJR0ZK7,Sample 1-1,Open,608019c1144d9ca6d2779c80cd3d7467
+drs://nci-crdc.datacommons.io/dg.4DFC/4df70c50-a84d-4561-9626-7b2a29f26cdc,52dae73e-1e5f-486b-8143-b2066672fec6.strelka2_somatic.norm.annot.public.vcf.gz,test1,PT_RSYVJY7K,Sample ,Open,f237c3cac0adb69cb81e9b63b6f25f4d
+drs://nci-crdc.datacommons.io/dg.4DFC/4daa4ab5-7033-4953-8596-908b2eb84d3d,adf13ce3-2427-47e0-bfb2-098dccb2e5ba.lancet_somatic.norm.annot.public.vcf.gz,test1,PT_MQWJ7FHV,Sample ,Open,50379d9d17ee39d9fb109cbac72977d1
+drs://nci-crdc.datacommons.io/dg.4DFC/bfafed43-c4ce-4210-846a-47edde441c35,3560812c-609b-456e-aa48-6d68636ea6fa.strelka2_somatic.norm.annot.public.vcf.gz,test1,PT_XNTFM9XY,Sample ,Open,bac1cee009efc6feb2b28df440f224c1
+drs://nci-crdc.datacommons.io/dg.4DFC/3bcf759f-2274-499a-af77-b043438be9eb,e70bbc35-400e-46fb-abda-a20dfe39b9a2.lancet_somatic.norm.annot.public.vcf.gz,test3,PT_VKRWCBA2,Sample ,Open,1acbbf5530854874647f883c08da67ab
+drs://nci-crdc.datacommons.io/dg.4DFC/7126b8dd-c18d-4df7-af44-59afacb7a185,5547d638-01bf-4977-a798-7f4308dd59a1.lancet_somatic.norm.annot.public.vcf.gz,test3,PT_3AWKWXEV,Sample ,Open,b2c8176d4ef808281d557c07773ff065
+drs://nci-crdc.datacommons.io/dg.4DFC/e79c44a2-5e30-454d-964d-a4fea5bad604,97d0831f-4a6a-476a-9dd3-5c4a2f18766b.strelka2_somatic.norm.annot.public.vcf.gz,test3,PT_46H4XA7E,Sample ,Open,62001e15f81554c07216de0d260b98b3
+drs://nci-crdc.datacommons.io/dg.4DFC/c67390b0-f017-4a35-b75f-742277ddc7bf,2918dfec-87b0-4449-af7c-44d9a61aa568.mutect2_somatic.norm.annot.public.vcf.gz.tbi,test1,PT_N3205P0D,Sample 1-1,Open,6281b620116c883ebdfa2ab014244509
+drs://nci-crdc.datacommons.io/dg.4DFC/89ea2f24-63fe-4f21-8e03-698116c88b88,094f0041-3423-4719-80c8-712327a81d34.consensus_somatic.norm.annot.public.vcf.gz,,PT_VC7WZMC4,Sample ,Open,a3f051867fc3ecbce8ebaa5e90642fb4
+drs://nci-crdc.datacommons.io/dg.4DFC/4c38d5e5-ebcd-4300-a197-a80a3b357a0f,f9d243f8-915e-4d1c-8d5e-106b1be75c90.lancet_somatic.norm.annot.public.vcf.gz,test3,PT_23JJKZPS,Sample ,Open,53afc4e6576d22b80446f0c3c83f5a2b
+drs://nci-crdc.datacommons.io/dg.4DFC/7131615f-20f7-4a08-a168-0d42133f4dea,0002eede-afe8-4941-a494-06bc07706f9a.lancet_somatic.norm.annot.protected.vcf.gz,test1,PT_KTRJ8TFY,Sample ,Controlled,30e490fc73a0dfe5c4a35b51787e2239
+drs://nci-crdc.datacommons.io/dg.4DFC/8215135d-3c25-464a-a8fe-95264adb4735,0002eede-afe8-4941-a494-06bc07706f9a.lancet_somatic.norm.annot.public.vcf.gz,test3,PT_KTRJ8TFY,Sample ,Open,c8d01857a8e6b7d509822f97cfbe89a8
+drs://nci-crdc.datacommons.io/dg.4DFC/ef31c992-0144-47f0-a958-44c54d532338,00019396-024d-4e34-874e-4048b3ae9e7c.manta.diploidSV.vcf.gz,test1,PT_0YB0195R,Sample ,,8afbb80c888cfb778f8e7ce702174cbb
+drs://nci-crdc.datacommons.io/dg.4DFC/42b34659-02ea-4536-9dbd-42b25c48d203,00019396-024d-4e34-874e-4048b3ae9e7c.svaba.indel.vcf.gz,test3,PT_0YB0195R,Sample ,,2e7fb10061eaa42b6e54cdf25b1db574
+drs://nci-crdc.datacommons.io/dg.4DFC/e514032c-0229-4988-8d06-c459caf5e4de,00007342-df52-4765-9315-f529860af6a5.multi.vqsr.filtered.denovo.vep_105.vcf.gz,test3,PT_GFCE2H6E,Sample ,,40d59440ab0add64a52860c0e17ae396
+drs://nci-crdc.datacommons.io/dg.4DFC/01b72617-873a-4908-b15b-c17f6c35f326,00019396-024d-4e34-874e-4048b3ae9e7c.manta.candidateSmallIndels.vcf.gz,test3,PT_0YB0195R,Sample ,,090ee4a0c9587001386c411847db4c67
