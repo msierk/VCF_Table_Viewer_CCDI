@@ -1,8 +1,8 @@
 # Repo Specific #
 #################
 rsconnect/                   
-vcfs.orig/
 TODO.txt
+.Rproj
 
 # Compiled source #
 ###################
