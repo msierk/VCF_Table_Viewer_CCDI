@@ -1,0 +1,63 @@
+---
+title: "Instructions"
+output: html_document
+date: "`r Sys.Date()`"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Overview
+
+This is an adaptation of the VCF Table Viewer shiny app that is tailored to access Variant Call Format (VCF) files from the Childhood Cancer Data Initiative (CCDI) on the Cancer Genomics Cloud (CGC) platform.  The purpose is to enable easy examination of annotated variants by extracting them from the difficult-to-read VCF format and displaying them in an easy-to-navigate table format.  If the corresponding BAM file is available, you can also visualize the read pileups at the location of a called variant. The assumption is that you are viewing a filtered set of variants (under 10,000) for manual inspection - the app is not designed to load full VCF files from whole-genome shotgun sequencing experiments, for example.  
+
+## Input
+The default input is a manifest file derived from the CCDI Data Hub.  The script for generating the manifest file is available on Github.  This manifest file has all of the VCF files from all the studies available on the CCDI Data Hub, with matching BAM and/or CRAM alignment files.  
+
+**It is essential that the VCF files that you want to view have been copied to your project-files directory on CGC.**  *Note: The VCF Table Viewer is only designed to read in 10,000 variants, so it gives a warning if your selected VCF file is too large.*  If you wish to view the BAM file, the associated tabix-indexed file (.bam.bai) must be present in the same directory.  Some CCDI BAM files have existing index files and some do not - if the index file does not exist you will need to generate it.       
+
+If you provide your own manifest file in .csv format, it must contain the following columns: VCFFileName, ParticipantID, SampleID. Optional columns include StudyID, VCFFileSize, caller, BAMFileName, and CRAMFileName.
+
+You select a StudyID, which then populates the ParticipantID selection menu.  Once you select a Participant, the SampleID menu is populated.  You can optionally filter based upon FileAccess (Open or Controlled (the default is both are shown)) and caller (default is consensus). The list of available callers is below. You can use ‘unknown’ if the caller is unknown or is not in the list, but the app may not parse the VCF file properly.
+
+Available variant callers:
+
+haplotypecaller
+deepvariant
+mutect2
+strelka2
+lancet
+manta
+svaba
+vardict
+unknown
+
+## Output
+### Table
+The VCF is filtered based on population frequency and by mutation type. The default population filter is MAX_AF <= 0.01. The default mutation filter is for significant mutations (listed below). The table will only load with the first 10,000 variants, so you may need to do some filtering of your VCF file prior to loading it in VCF Table Viewer.
+
+### BAM Viewer
+For the BAM Viewer to work, you must have the BAM file that the VCF calls were made from in the input manifest file in the project files directory, along with the associated tabix index file. For cram files you will need to convert them to bam format first. (Reading cram files directly is in development.)
+
+Significant Mutations
+
+missense_variant
+stop_gained
+splice_donor_variant
+splice_acceptor_variant
+splice_region_variant
+frameshift_variant
+disruptive_inframe_insertion
+disruptive_inframe_deletion
+conservative_inframe_deletion
+conservative_inframe_insertion
+start_lost
+stop_lost
+Less Significant Mutations
+
+stop_retained_variant
+5_prime_UTR_premature_start_codon_gain_variant
+5_prime_UTR_variant
+3_prime_UTR_variant
+synonymous_variant
