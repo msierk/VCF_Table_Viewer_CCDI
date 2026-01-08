@@ -408,6 +408,9 @@ server <- function(input, output, session) {
     vcf <- read.vcfR(inFile, checkFile = TRUE)
     # Note: using nrows = 100000L creates a dataframe with 100,000 rows even if
     # there are fewer variants than that in the file.
+    # # Keep rows where NOT all values across ALL columns are NA
+    # df_filtered <- df %>%
+    #  filter(!if_all(everything(), is.na))
     print(paste("vcf dimensions: ", dim(vcf)))
     
     # check that we have variants
@@ -443,7 +446,7 @@ server <- function(input, output, session) {
       fixed <- t(data.frame(getFIX(vcf)))
     }
     info <- INFO2df(vcf)
-    print(colnames(info))
+    #print(colnames(info))
     my.vcf.df <- cbind(as.data.frame(fixed), vcf@gt, info)
     print("...done")
     
@@ -468,7 +471,8 @@ server <- function(input, output, session) {
     print("Getting annotation columns...")
     ann <- grepl("ID=CSQ", vcf@meta)
     txt <- vcf@meta[ann]
-    print(txt)
+    #print(txt)
+    print("...done")
     
     cols <- unlist(strsplit(vcf@meta[ann], "Format: ")) # get rid of leading text
     cols2 <- gsub("\\\">","" , cols[2]) # get rid of trailing text
@@ -478,9 +482,11 @@ server <- function(input, output, session) {
     # print(colnames(my.vcf.df))
     # if multiple annotations, only take the 1st one (TODO: deal with multiple alleles)
     my.vcf.ANN.df <- my.vcf.df |> separate_wider_delim(CSQ, delim=",", names = c("CSQ"), too_many="drop")
+    my.vcf.ANN.df <- my.vcf.ANN.df |> rename_with(~ paste0(.,"_INFO"), .cols = matches("^SOMATIC"))
     my.vcf.ANN.df <- my.vcf.ANN.df |> separate_wider_delim(CSQ, delim = "|", names = newcols,  
                                                            too_many = "debug", too_few = "debug", 
                                                            names_repair = "universal") # 
+    
     # rename AF columns
     if (caller == "haplotypecaller") {
       my.vcf.ANN.df <- my.vcf.ANN.df |> rename("AF...11" = "AF", "AF...70" = "AF_TG") # requires AF to be in columns 11 and 69
@@ -509,6 +515,7 @@ server <- function(input, output, session) {
                                        "5_prime_UTR_variant",
                                        "3_prime_UTR_variant",
                                        "synonymous_variant")
+    
     # user selects mutation_filter (default "significant")
     mutation_filter = "significant"
     if (mutation_filter == "less_significant") {
@@ -530,7 +537,6 @@ server <- function(input, output, session) {
     #### create aa mutation e.g. I255T
     #  Protein_position 70/393
     #  Amino_acids I/T
-    
     my.vcf.ANN.df <- my.vcf.ANN.df |>
       mutate(prot_pos = str_extract(Protein_position, "(^\\d+)/", group=1)) |>
       mutate(AA1 = str_extract(Amino_acids, "(^\\w+)/", group=1)) |> 
@@ -551,10 +557,11 @@ server <- function(input, output, session) {
     # 
     #### order the columns logically  "Leudrive", "ACMG", 
     my.vcf.ANN.df <- my.vcf.ANN.df |> 
-      relocate(c("Allele", "FILTER", "SYMBOL", "AA_mut", "IMPACT", "Consequence",  "Existing_variation"), .after=QUAL) |>
-      relocate(c("CLIN_SIG", "SIFT", "PolyPhen")) #|> # .after=SOMATIC
-      #relocate(c("REVEL_score"), .after=DANN_score)
-    my.vcf.ANN.df <- my.vcf.ANN.df |> relocate(index)
+      relocate(c("Allele", "FILTER", "SYMBOL", "AA_mut", "IMPACT", "Consequence",  "Existing_variation"), 
+               .after=QUAL) |>
+      relocate(c(colnames(gene_lists),"CLIN_SIG", "SIFT", "PolyPhen", "AF", "gnomAD_AF"), 
+               .after=Consequence) |> 
+      relocate(index)
     
     #### make columns numeric  
     # my.vcf.ANN.df <- my.vcf.ANN.df |> mutate(across(c('DANN_score', 'CADD_phred', 'REVEL_score'), \(x) as.numeric(x))) |>  
@@ -569,8 +576,9 @@ server <- function(input, output, session) {
       # TODO: make this easier to modify for default
       
       # select columns to show:
-      show_cols_text <- "index,CHROM,POS,REF,ALT,FILTER,DP,GERMQ,
-                         POPAF,Allele,Consequence,IMPACT,SYMBOL,AA_mut,Leudrive,ACMG,Gene,
+      # CHROM,POS,REF,ALT,Allele
+      show_cols_text <- "index,FILTER,DP,GERMQ,
+                         POPAF,Consequence,IMPACT,SYMBOL,AA_mut,Leudrive,ACMG,Gene,
                          Feature_type,Feature,BIOTYPE,EXON,INTRON,cDNA_position,CDS_position,
                          SWISSPROT,SIFT,PolyPhen,AF,gnomADe_AF,MAX_AF,FREQS,
                          CLIN_SIG,SOMATIC,CADD_phred,DANN_score,FATHMM_pred,LRT_pred,MetaSVM_pred,
@@ -666,7 +674,7 @@ server <- function(input, output, session) {
         fixedColumns=TRUE,
         pageLength = 100,
         lengthMenu = list(c(50, 100, -1), c('50','100','All')),
-        autoWidth = FALSE,
+        autoWidth = TRUE,
         scrollX = TRUE,
         columnDefs = list(list(visible = FALSE, targets = hide_cols)
                           #list(targets = 0, width = '50px') # c(0,11) doesn't work for some reason
@@ -733,14 +741,14 @@ server <- function(input, output, session) {
   #-----------------------------------------------------------------------------#
 
   observeEvent(input$dataTable_rows_selected, {
-    x <- inputTable()[input$dataTable_rows_selected, ]
-    
+    x <- inputTable()$df[input$dataTable_rows_selected, ]
+    print(dim(x))
     # Can use character(0) to remove all choices
     if (is.null(x))
       x <- character(0)
     
     # Update the selectInput menu
-    updateSelectInput(session, "variantList", "Selected Variants", choices = x["index"], selected = c(""))
+    updateSelectInput(session, "variantList", "Selected Variants", choices = x["index"]) # selected = c("")
     
   })
   
@@ -759,7 +767,7 @@ server <- function(input, output, session) {
     } 
     output$bamDir <- renderText(global$bamDir)
     
-    x <- inputTable()
+    x <- inputTable()$df
     variant <- x[x$index == input$variantList, ] # input$variantList
     chrom_pos <- paste0(variant$CHROM, ":", variant$POS)
     showGenomicRegion(session, id="igvShiny_0", chrom_pos) # chr21:10,397,614-10,423,341
@@ -860,10 +868,10 @@ server <- function(input, output, session) {
   #-----------------------------------------------------------------------------#
   observeEvent(input$createPlot, {
 
-    subjID <- input$subjectID
+    subjID <- input$participantID
     print(paste("Generating plot for", subjID, "..."))
 
-    x <- inputTable()[input$dataTable_rows_selected, ]
+    x <- inputTable()$df[input$dataTable_rows_selected, ]
     
     # Genotype formatting
     # haplotypecaller: 0/1:53,41:94:99:1178,0,1559
@@ -872,17 +880,19 @@ server <- function(input, output, session) {
     #          0/1:240,8:0.005226:248:58,0:100,0:208,4:135,105,8,0
     #          SB “Per-sample component statistics which comprise the Fisher’s Exact Test to detect strand bias.”
     
+    # GT:AD:AF:AU:CU:DP:FDP:GU:SDP:SUBDP:TU
+    # 
     # need gene symbol + aa mutation if available, select out GT fields
     samples <- x |> mutate(index = case_when(!is.na(AA_mut) ~ paste0(SYMBOL, "(", AA_mut, ")"), 
                                               .default = index)) |> 
-                     select(index, starts_with("FPD_")) 
+                    select(index, starts_with("FPD_")) 
                      
     print(samples)
 
     getAF <- ~as.numeric(unlist(strsplit(.x, ":"))[3])
     samples <- samples |> rowwise() |> mutate(across(starts_with("FPD_"), getAF)) |>
-                       rename_with(~str_remove(., "^FPD_[\\d]{4}_")) |>
-                       select(contains("SK"), sort(colnames(.)))
+                          rename_with(~str_remove(., "^FPD_[\\d]{4}_")) |>
+                          select(contains("SK"), sort(colnames(.)))
     #print(samples)
       
     factor(substring(x, 1, 2)) # orders the sample names
