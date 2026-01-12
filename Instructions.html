@@ -10,7 +10,7 @@
 
 
 
-<meta name="date" content="2026-01-08" />
+<meta name="date" content="2026-01-09" />
 
 <title>Instructions</title>
 
@@ -350,7 +350,7 @@ display: none;
 
 
 <h1 class="title toc-ignore">Instructions</h1>
-<h4 class="date">2026-01-08</h4>
+<h4 class="date">2026-01-09</h4>
 
 </div>
 
@@ -389,7 +389,24 @@ gives a warning if your selected VCF file is too large.</em> If you wish
 to view the BAM file, the associated tabix-indexed file (.bam.bai) must
 be present in the same directory. Some CCDI BAM files have existing
 index files and some do not - if the index file does not exist you will
-need to generate it.</p>
+need to generate it. Currently the BAM file viewer can only read BAM
+files, but not CRAM files. For many samples there is a .cram file but no
+.bam file - in those cases you must convert the bam file to a cram file
+on CGC first (along with an index file).</p>
+<p>To copy the files you want to view to CGC you follow these steps:</p>
+<ol style="list-style-type: decimal">
+<li>Go to the CCDI Hub and use the filtering tools to identify the files
+you wish to view.<br />
+</li>
+<li>Add the files to your Cart.<br />
+</li>
+<li>Select “Copy to CGC”.<br />
+</li>
+<li>Select the destination project in CGC. (Must be set up first.)<br />
+</li>
+<li>The files will be copied to the project-files folder within a few
+minutes.</li>
+</ol>
 <p>If you provide your own manifest file in .csv format, it must contain
 the following columns: VCFFileName, ParticipantID, SampleID. Optional
 columns include StudyID, VCFFileSize, caller, BAMFileName, and

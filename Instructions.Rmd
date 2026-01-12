@@ -24,7 +24,15 @@ This is an adaptation of the [VCF Table Viewer](https://github.com/CBIIT-CGBB/VC
 ## Input
 The default input is a manifest file derived from the CCDI Hub.  The script for generating the manifest file is available on [Github](https://github.com/msierk/VCF_Table_Viewer_CCDI).  This manifest file has all of the VCF files from all the studies available on the CCDI Hub, with matching BAM and/or CRAM alignment files.  
 
-**It is essential that the VCF files that you want to view have been copied to your project-files directory on CGC.**  *Note: The VCF Table Viewer is only designed to read in 10,000 variants, so it gives a warning if your selected VCF file is too large.*  If you wish to view the BAM file, the associated tabix-indexed file (.bam.bai) must be present in the same directory.  Some CCDI BAM files have existing index files and some do not - if the index file does not exist you will need to generate it.       
+**It is essential that the VCF files that you want to view have been copied to your project-files directory on CGC.**  *Note: The VCF Table Viewer is only designed to read in 10,000 variants, so it gives a warning if your selected VCF file is too large.*  If you wish to view the BAM file, the associated tabix-indexed file (.bam.bai) must be present in the same directory.  Some CCDI BAM files have existing index files and some do not - if the index file does not exist you will need to generate it. Currently the BAM file viewer can only read BAM files, but not CRAM files. For many samples there is a .cram file but no .bam file - in those cases you must convert the bam file to a cram file on CGC first (along with an index file).
+
+To copy the files you want to view to CGC you follow these steps:  
+
+1. Go to the CCDI Hub and use the filtering tools to identify the files you wish to view.  
+2. Add the files to your Cart.  
+3. Select "Copy to CGC".  
+4. Select the destination project in CGC. (Must be set up first.)  
+5. The files will be copied to the project-files folder within a few minutes.  
 
 If you provide your own manifest file in .csv format, it must contain the following columns: VCFFileName, ParticipantID, SampleID. Optional columns include StudyID, VCFFileSize, caller, BAMFileName, and CRAMFileName.
 
