@@ -1,0 +1,7 @@
+StudyID,ParticipantID,SampleID,caller,VCFFileName,VCFFileSize
+ST_TEST01,PT_TEST01,SM_TEST01,consensus,094f0041-3423-4719-80c8-712327a81d34.consensus_somatic.norm.annot.public.vcf.gz,208 KB
+ST_TEST01,PT_TEST01,SM_TEST01,strelka2,1fd1e21d-c447-455f-aeb6-ba3e64d1040a.strelka2_somatic.norm.annot.public.vcf.gz,1.5 MB
+ST_TEST01,PT_TEST01,SM_TEST01,lancet,e70bbc35-400e-46fb-abda-a20dfe39b9a2.lancet_somatic.norm.annot.public.vcf.gz,366 KB
+ST_TEST01,PT_TEST01,SM_TEST01,mutect2,0d25fa79-ba44-47b8-ba84-b77822c993d7.mutect2_somatic.norm.annot.public.vcf.gz,1.8 MB
+ST_TEST01,PT_TEST01,SM_TEST02,consensus,223fba12-86ec-44ec-9fe2-36ae1e8410b7.consensus_somatic.norm.annot.public.vcf.gz,640 KB
+ST_TEST01,PT_TEST01,SM_TEST02,strelka2,3560812c-609b-456e-aa48-6d68636ea6fa.strelka2_somatic.norm.annot.public.vcf.gz,1.1 MB
